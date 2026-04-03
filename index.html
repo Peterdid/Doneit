@@ -1,359 +1,165 @@
 <!DOCTYPE html><html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pro GPS Navigation v5</title>  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <title>Pro GPS Navigation v7</title>  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />  <style>
     * { box-sizing: border-box; }
 
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-      background: #000;
-    }
+    body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; }
 
-    #map {
-      width: 100vw;
-      height: 100vh;
-    }
+    #map { width: 100vw; height: 100vh; }
 
     #controls {
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      width: 92%;
-      max-width: 460px;
-      background: rgba(255,255,255,0.96);
-      border-radius: 16px;
-      padding: 12px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; background: rgba(255,255,255,0.95);
+      padding: 10px; border-radius: 14px; width: 92%; max-width: 460px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
     }
 
-    .searchBox {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      font-size: 15px;
-      margin-bottom: 8px;
+    #startLocation, #destination {
+      width: 100%; padding: 10px; border-radius: 10px;
+      border: 1px solid #ccc; font-size: 15px; margin-bottom: 8px;
     }
 
     #startBtn {
-      width: 100%;
-      border: none;
-      border-radius: 10px;
-      padding: 13px;
-      font-size: 16px;
-      font-weight: bold;
-      background: #1e88e5;
-      color: white;
-      cursor: pointer;
-    }
-
-    #recenterBtn {
-      position: absolute;
-      left: 24px;
-      bottom: 192px;
-      width: 58px;
-      height: 58px;
-      border: none;
-      border-radius: 50%;
-      background: rgba(30,136,229,0.95);
-      color: white;
-      font-size: 28px;
-      font-weight: bold;
-      z-index: 1000;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-      cursor: pointer;
+      display: block; width: 100%; padding: 12px; border: none;
+      border-radius: 10px; background: #1e88e5; color: white; font-size: 16px;
     }
 
     #etaCircle {
-      position: absolute;
-      left: 14px;
-      bottom: 90px;
-      width: 92px;
-      height: 92px;
-      border-radius: 50%;
-      background: rgba(30,136,229,0.95);
-      color: white;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+      position: absolute; left: 14px; bottom: 95px;
+      width: 92px; height: 92px; border-radius: 50%;
+      background: rgba(30,136,229,0.95); color: white;
+      z-index: 1000; display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3); text-align: center;
     }
 
-    #kmLeft {
-      font-size: 22px;
-      font-weight: bold;
-      line-height: 1;
-    }
+    #kmLeft { font-size: 20px; font-weight: bold; line-height: 1; }
+    #minsLeft { font-size: 15px; margin-top: 4px; }
 
-    #minsLeft {
-      margin-top: 4px;
-      font-size: 14px;
+    #recenterBtn {
+      position: absolute; left: 24px; bottom: 192px;
+      width: 58px; height: 58px; border: none; border-radius: 50%;
+      background: rgba(30,136,229,0.95); color: white; font-size: 28px;
+      font-weight: bold; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.3);
     }
 
     #turnBox {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
-      bottom: 18px;
-      width: 90%;
-      max-width: 420px;
-      background: rgba(255,255,255,0.96);
-      border-radius: 14px;
-      padding: 12px;
-      text-align: center;
-      z-index: 1000;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      width: 88%; max-width: 420px; background: rgba(255,255,255,0.96);
+      border-radius: 14px; padding: 12px; z-index: 1000;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25); text-align: center;
     }
 
-    #turnText {
-      font-size: 16px;
-      font-weight: bold;
+    #turnText { font-weight: bold; font-size: 16px; }
+    #streetText { margin-top: 5px; color: #555; font-size: 14px; }
+
+    #suggestions, #startSuggestions {
+      position: absolute; top: 56px; left: 10px; right: 10px;
+      background: white; border-radius: 10px; max-height: 180px;
+      overflow-y: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      z-index: 1001;
     }
 
-    #streetText {
-      margin-top: 4px;
-      color: #666;
-      font-size: 14px;
-    }
-
-    .suggestions {
-      max-height: 170px;
-      overflow-y: auto;
-      border-radius: 10px;
-      margin-top: 2px;
-    }
-
-    .suggestion {
-      background: white;
-      padding: 10px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-    }
-
-    .suggestion:hover {
-      background: #f3f3f3;
-    }
+    .suggestion { padding: 10px; border-bottom: 1px solid #eee; }
+    .suggestion:hover { background: #f1f1f1; }
   </style></head>
 <body><div id="controls">
-  <input id="startLocation" class="searchBox" placeholder="Starting point (leave blank for current location)">
-  <div id="startSuggestions" class="suggestions"></div>  <input id="destination" class="searchBox" placeholder="Destination">
-  <div id="destinationSuggestions" class="suggestions"></div><button id="startBtn">Start Route</button>
-
+  <input id="startLocation" placeholder="Starting point (leave blank for current location)">
+  <input id="destination" placeholder="Destination">
+  <button id="startBtn">Start</button>
+  <div id="startSuggestions"></div>
+  <div id="suggestions"></div>
 </div><button id="recenterBtn">⌖</button>
 
-<div id="etaCircle">
-  <div id="kmLeft">0 km</div>
-  <div id="minsLeft">0 min</div>
-</div><div id="turnBox">
-  <div id="turnText">Choose a destination</div>
+<div id="etaCircle"><div id="kmLeft">0 km</div><div id="minsLeft">0 min</div></div><div id="turnBox">
+  <div id="turnText">Waiting for route...</div>
   <div id="streetText"></div>
 </div><div id="map"></div><script src="https://unpkg.com/leaflet/dist/leaflet.js"></script><script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script><script>
-  const southAfricaBounds = [[-35, 16], [-22, 33]];
-  const southAfricaPaddingBounds = L.latLngBounds(southAfricaBounds);
+const map = L.map('map', {
+  zoomControl: false, minZoom: 4, maxZoom: 18,
+  inertia: true, inertiaDeceleration: 2500
+}).setView([0,0], 2);
 
-  const map = L.map('map', {
-    zoomControl: false,
-    minZoom: 4,
-    maxZoom: 18,
-    worldCopyJump: false,
-    inertia: true,
-    inertiaDeceleration: 2500,
-    inertiaMaxSpeed: 1500,
-    maxBoundsViscosity: 0.0
-  }).setView([-30, 24], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors'
+let currentLocation = null;
+let destinationCoords = null;
+let userMarker = null;
+let routingControl = null;
+let startCoords = null;
+
+const startInput = document.getElementById('startLocation');
+const destinationInput = document.getElementById('destination');
+const startSuggestions = document.getElementById('startSuggestions');
+const suggestions = document.getElementById('suggestions');
+const turnText = document.getElementById('turnText');
+const streetText = document.getElementById('streetText');
+const kmLeft = document.getElementById('kmLeft');
+const minsLeft = document.getElementById('minsLeft');
+
+navigator.geolocation.watchPosition(pos => {
+  currentLocation = [pos.coords.latitude, pos.coords.longitude];
+  if (!userMarker) userMarker = L.marker(currentLocation).addTo(map);
+  else userMarker.setLatLng(currentLocation);
+}, err => { alert('Allow GPS access'); }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 });
+
+async function searchPlaces(query) {
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&extratags=1&namedetails=1&limit=8&q=${encodeURIComponent(query)}`);
+  return await res.json();
+}
+
+startInput.addEventListener('input', async () => {
+  const text = startInput.value.trim(); startSuggestions.innerHTML = '';
+  if (text.length < 2) return;
+  const places = await searchPlaces(text);
+  places.forEach(place => {
+    const div = document.createElement('div'); div.className='suggestion';
+    const road = place.address?.road||''; const suburb = place.address?.suburb||place.address?.city||''; const house = place.address?.house_number||'';
+    div.textContent = [house, road, suburb].filter(Boolean).join(' ')||place.display_name;
+    div.onclick=()=>{startInput.value=div.textContent; startCoords=[parseFloat(place.lat), parseFloat(place.lon)]; startSuggestions.innerHTML='';};
+    startSuggestions.appendChild(div);
+  });
+});
+
+destinationInput.addEventListener('input', async () => {
+  const text = destinationInput.value.trim(); suggestions.innerHTML='';
+  if (text.length<2) return;
+  const places = await searchPlaces(text);
+  places.forEach(place=>{
+    const div=document.createElement('div'); div.className='suggestion';
+    const road = place.address?.road||''; const suburb = place.address?.suburb||place.address?.city||''; const house = place.address?.house_number||'';
+    div.textContent=[house,road,suburb].filter(Boolean).join('')||place.display_name;
+    div.onclick=()=>{destinationInput.value=div.textContent; destinationCoords=[parseFloat(place.lat),parseFloat(place.lon)]; suggestions.innerHTML='';};
+    suggestions.appendChild(div);
+  });
+});
+
+function makeRoute() {
+  if (!destinationCoords) return;
+  if (routingControl) map.removeControl(routingControl);
+  const routeStart = startCoords || currentLocation;
+  routingControl = L.Routing.control({
+    waypoints: [ L.latLng(routeStart[0],routeStart[1]), L.latLng(destinationCoords[0],destinationCoords[1]) ],
+    lineOptions: { styles:[{color:'#1e88e5',weight:7,opacity:0.9}] },
+    addWaypoints:false, routeWhileDragging:false, fitSelectedRoutes:true, show:false,
+    createMarker:(i,wp)=> i===1? L.marker(wp.latLng):null
   }).addTo(map);
 
-  let currentLocation = null;
-  let destinationCoords = null;
-  let startCoords = null;
-  let routingControl = null;
-  let userMarker = null;
-  let followRoute = true;
-  let recenterTimer = null;
-
-  const startInput = document.getElementById('startLocation');
-  const destinationInput = document.getElementById('destination');
-  const startSuggestions = document.getElementById('startSuggestions');
-  const destinationSuggestions = document.getElementById('destinationSuggestions');
-
-  map.on('dragstart', () => {
-    followRoute = false;
-    clearTimeout(recenterTimer);
+  routingControl.on('routesfound', e=>{
+    const route=e.routes[0];
+    kmLeft.textContent=(route.summary.totalDistance/1000).toFixed(1)+' km';
+    minsLeft.textContent=Math.ceil(route.summary.totalTime/60)+' min';
   });
+}
 
-  map.on('movestart', () => {
-    clearTimeout(recenterTimer);
-  });
+document.getElementById('startBtn').addEventListener('click', makeRoute);
 
-  map.on('moveend', () => {
-    // User can freely move the map without it snapping back automatically
-  });
-
-  navigator.geolocation.watchPosition(position => {
-    currentLocation = [position.coords.latitude, position.coords.longitude];
-
-    if (!userMarker) {
-      userMarker = L.marker(currentLocation).addTo(map);
-    } else {
-      userMarker.setLatLng(currentLocation);
-    }
-
-    if (routingControl && destinationCoords) {
-      createRoute(true);
-    }
-  }, () => {
-    alert('Please allow location access');
-  }, {
-    enableHighAccuracy: true,
-    maximumAge: 1000,
-    timeout: 10000
-  });
-
-  async function searchPlaces(query) {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=za&q=${encodeURIComponent(query)}`);
-    return await res.json();
-  }
-
-  function shortAddress(place) {
-    const house = place.address?.house_number || '';
-    const road = place.address?.road || '';
-    const suburb = place.address?.suburb || place.address?.city || place.address?.town || '';
-    return [house, road, suburb].filter(Boolean).join(' ');
-  }
-
-  startInput.addEventListener('input', async () => {
-    const value = startInput.value.trim();
-    startSuggestions.innerHTML = '';
-    if (value.length < 2) return;
-
-    const places = await searchPlaces(value);
-
-    places.forEach(place => {
-      const item = document.createElement('div');
-      item.className = 'suggestion';
-      item.textContent = shortAddress(place) || place.display_name;
-
-      item.onclick = () => {
-        startInput.value = item.textContent;
-        startCoords = [parseFloat(place.lat), parseFloat(place.lon)];
-        startSuggestions.innerHTML = '';
-      };
-
-      startSuggestions.appendChild(item);
-    });
-  });
-
-  destinationInput.addEventListener('input', async () => {
-    const value = destinationInput.value.trim();
-    destinationSuggestions.innerHTML = '';
-    if (value.length < 2) return;
-
-    const places = await searchPlaces(value);
-
-    places.forEach(place => {
-      const item = document.createElement('div');
-      item.className = 'suggestion';
-      item.textContent = shortAddress(place) || place.display_name;
-
-      item.onclick = () => {
-        destinationInput.value = item.textContent;
-        destinationCoords = [parseFloat(place.lat), parseFloat(place.lon)];
-        destinationSuggestions.innerHTML = '';
-      };
-
-      destinationSuggestions.appendChild(item);
-    });
-  });
-
-  function createRoute(recalculating = false) {
-    const routeStart = startCoords || currentLocation;
-
-    if (!routeStart || !destinationCoords) return;
-
-    if (routingControl) {
-      map.removeControl(routingControl);
-    }
-
-    routingControl = L.Routing.control({
-      waypoints: [
-        L.latLng(routeStart[0], routeStart[1]),
-        L.latLng(destinationCoords[0], destinationCoords[1])
-      ],
-      addWaypoints: false,
-      draggableWaypoints: false,
-      fitSelectedRoutes: false,
-      show: false,
-      routeWhileDragging: false,
-      createMarker: (i, wp) => i === 1 ? L.marker(wp.latLng) : null,
-      lineOptions: {
-        styles: [{ color: '#1e88e5', weight: 7, opacity: 0.9 }]
-      }
-    }).addTo(map);
-
-    routingControl.on('routesfound', e => {
-      const route = e.routes[0];
-
-      document.getElementById('kmLeft').textContent = (route.summary.totalDistance / 1000).toFixed(1) + ' km';
-      document.getElementById('minsLeft').textContent = Math.ceil(route.summary.totalTime / 60) + ' min';
-
-      const instruction = route.instructions?.[0];
-      if (instruction) {
-        document.getElementById('turnText').textContent = instruction.text;
-        document.getElementById('streetText').textContent = instruction.road ? 'Road: ' + instruction.road : '';
-      }
-
-      if (followRoute) {
-        const bounds = routingControl.getBounds();
-        if (bounds) {
-          map.flyToBounds(bounds, {
-            padding: [70, 70],
-            duration: 1.1,
-            maxZoom: 15
-          });
-        }
-      }
-      }
-
-      if (recalculating) {
-        speechSynthesis.cancel();
-        speechSynthesis.speak(new SpeechSynthesisUtterance('Route recalculated'));
-      }
-    });
-  }
-
-  document.getElementById('recenterBtn').addEventListener('click', () => {
-    if (routingControl) {
-      const bounds = routingControl.getBounds();
-      if (bounds) {
-        map.flyToBounds(bounds, {
-          padding: [70, 70],
-          duration: 1
-        });
-      }
-    } else if (currentLocation) {
-      map.flyTo(currentLocation, 15, { duration: 1 });
-    }
-  });
-
-  document.getElementById('startBtn').addEventListener('click', () => {
-    if (!destinationCoords) {
-      document.getElementById('turnText').textContent = 'Enter a destination to start navigation';
-      document.getElementById('streetText').textContent = '';
-      return;
-    }
-
-    followRoute = true;
-    createRoute(false);
-  });
+document.getElementById('recenterBtn').addEventListener('click', ()=>{
+  if (!routingControl) return;
+  const bounds = routingControl.getBounds();
+  if(bounds) map.fitBounds(bounds,{padding:[70,70],duration:1});
+});
 </script></body>
 </html>
