@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>My GPS App</title>
+  <title>GPS App - Road Routing</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { margin:0; font-family: Arial; text-align:center; background:#f4f4f4; }
@@ -11,56 +11,91 @@
     #map { height:70vh; width:100%; margin-top:10px; }
     #status { margin:10px; font-weight:bold; color:#555; }
   </style>
+
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Leaflet Routing Machine CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 </head>
 <body>
 
-<h1>My GPS App</h1>
+<h1>GPS App - Road Routing</h1>
 <input id="destination" placeholder="Type destination (e.g., Harissa Grill Melville)">
 <button id="startBtn" disabled>Start</button>
 <div id="status">Getting your location...</div>
 <div id="map"></div>
 
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<!-- Leaflet Routing Machine JS -->
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
+
 <script>
 let map = L.map('map').setView([-26.2041, 28.0473], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors' }).addTo(map);
 
-let userMarker, destinationMarker, routeLine, currentLocation = null;
+let userMarker, destinationMarker, currentLocation = null;
+let routingControl = null;
 const startBtn = document.getElementById("startBtn");
 const statusDiv = document.getElementById("status");
 
+// Get user's location
 if(navigator.geolocation){
   navigator.geolocation.watchPosition(pos => {
     let lat = pos.coords.latitude;
     let lng = pos.coords.longitude;
     currentLocation = [lat, lng];
-    if(!userMarker){ userMarker = L.marker(currentLocation).addTo(map).bindPopup("You are here").openPopup(); }
-    else{ userMarker.setLatLng(currentLocation); }
+    if(!userMarker){ 
+      userMarker = L.marker(currentLocation).addTo(map).bindPopup("You are here").openPopup(); 
+    } else { 
+      userMarker.setLatLng(currentLocation); 
+    }
     map.setView(currentLocation, 15);
-    if(destinationMarker){ if(routeLine) map.removeLayer(routeLine); routeLine = L.polyline([currentLocation, destinationMarker.getLatLng()], {color:"blue", weight:5}).addTo(map); }
     startBtn.disabled = false;
     statusDiv.innerText = "Location ready! Type your destination and press Start.";
-  }, error => { statusDiv.innerText = "Unable to get location. Check your GPS and permissions."; });
-} else { alert("GPS not supported"); }
+  }, error => { 
+    statusDiv.innerText = "Unable to get location. Check your GPS and permissions."; 
+  });
+} else { 
+  alert("GPS not supported"); 
+}
 
+// Function to get destination and create route
 async function go(){
-  if (!currentLocation) { alert("Still getting your location. Please wait a few seconds."); return; }
+  if (!currentLocation) { alert("Still getting your location. Please wait."); return; }
   let place = document.getElementById("destination").value;
   if(!place){ alert("Type a destination"); return; }
+
+  // Get destination coordinates using OpenStreetMap Nominatim
   let response = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(place));
   let data = await response.json();
   if(data.length===0){ alert("Place not found"); return; }
   let lat = parseFloat(data[0].lat);
   let lng = parseFloat(data[0].lon);
+
   if(destinationMarker) map.removeLayer(destinationMarker);
-  destinationMarker = L.marker([lat,lng], { icon:L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png', iconSize:[40,40] }) }).addTo(map).bindPopup(place).openPopup();
-  if(routeLine) map.removeLayer(routeLine);
-  routeLine = L.polyline([currentLocation, [lat,lng]], { color:"blue", weight:5 }).addTo(map);
-  map.fitBounds(routeLine.getBounds());
+  destinationMarker = L.marker([lat,lng]).addTo(map).bindPopup(place).openPopup();
+
+  // Remove old route if exists
+  if(routingControl) map.removeControl(routingControl);
+
+  // Create route using Leaflet Routing Machine
+  routingControl = L.Routing.control({
+    waypoints: [
+      L.latLng(currentLocation[0], currentLocation[1]),
+      L.latLng(lat, lng)
+    ],
+    lineOptions: { styles: [{color: 'blue', weight: 5}] },
+    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+    show: false,
+    addWaypoints: false
+  }).addTo(map);
+
+  // Speak destination
   let speech = new SpeechSynthesisUtterance("Going to " + place);
   speechSynthesis.speak(speech);
 }
+
 startBtn.addEventListener("click", go);
 </script>
 </body>
