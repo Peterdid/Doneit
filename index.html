@@ -1,102 +1,147 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>GPS App - Road Routing</title>
+  <title>GPS App - Smart Navigation</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { margin:0; font-family: Arial; text-align:center; background:#f4f4f4; }
     h1 { background:#1e88e5; color:white; margin:0; padding:15px; }
-    input { width:80%; padding:12px; margin-top:10px; border:1px solid #ccc; border-radius:8px; }
-    button { padding:12px 20px; margin:10px; border:none; border-radius:8px; background:#1e88e5; color:white; font-size:16px; }
+    #destination { width:80%; padding:12px; margin-top:10px; border:1px solid #ccc; border-radius:8px; }
+    #startBtn { padding:12px 20px; margin:10px; border:none; border-radius:8px; background:#1e88e5; color:white; font-size:16px; }
+    #defaultToggle { margin:10px; }
     #map { height:70vh; width:100%; margin-top:10px; }
     #status { margin:10px; font-weight:bold; color:#555; }
+    .autocomplete-suggestions { position: absolute; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 9999; width: 80%; margin: auto; left: 0; right: 0; }
+    .autocomplete-suggestion { padding: 8px; cursor: pointer; }
+    .autocomplete-suggestion:hover { background: #eee; }
   </style>
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <!-- Leaflet Routing Machine CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 </head>
 <body>
 
-<h1>GPS App - Road Routing</h1>
-<input id="destination" placeholder="Type destination (e.g., Harissa Grill Melville)">
+<h1>GPS App - Smart Navigation</h1>
+
+<label><input type="checkbox" id="defaultToggle"> Use default route (14 Menton Road → Harissa Grill)</label><br>
+<input id="destination" placeholder="Type destination (city, street...)">
+<div class="autocomplete-suggestions" id="suggestions"></div>
 <button id="startBtn" disabled>Start</button>
 <div id="status">Getting your location...</div>
 <div id="map"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<!-- Leaflet Routing Machine JS -->
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
 
 <script>
-let map = L.map('map').setView([-26.2041, 28.0473], 13);
+let map = L.map('map', { zoomControl: true }).setView([-26.2041, 28.0473], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors' }).addTo(map);
 
 let userMarker, destinationMarker, currentLocation = null;
 let routingControl = null;
+let mapCentered = false;
 const startBtn = document.getElementById("startBtn");
 const statusDiv = document.getElementById("status");
+const destinationInput = document.getElementById("destination");
+const suggestionsDiv = document.getElementById("suggestions");
+const defaultToggle = document.getElementById("defaultToggle");
 
-// Get user's location
+// Get user location
 if(navigator.geolocation){
   navigator.geolocation.watchPosition(pos => {
     let lat = pos.coords.latitude;
     let lng = pos.coords.longitude;
     currentLocation = [lat, lng];
+
     if(!userMarker){ 
-      userMarker = L.marker(currentLocation).addTo(map).bindPopup("You are here").openPopup(); 
+        userMarker = L.marker(currentLocation).addTo(map).bindPopup("You are here").openPopup(); 
     } else { 
-      userMarker.setLatLng(currentLocation); 
+        userMarker.setLatLng(currentLocation); 
     }
-    map.setView(currentLocation, 15);
+
+    if(!mapCentered){
+        map.setView(currentLocation, 15);
+        mapCentered = true;
+    } else {
+        map.panTo(currentLocation, {animate:true, duration:1});
+    }
+
     startBtn.disabled = false;
-    statusDiv.innerText = "Location ready! Type your destination and press Start.";
-  }, error => { 
-    statusDiv.innerText = "Unable to get location. Check your GPS and permissions."; 
+    statusDiv.innerText = "Location ready! Start typing a destination or use default route.";
+  }, error => { statusDiv.innerText = "Unable to get location. Check GPS & permissions."; });
+} else { alert("GPS not supported"); }
+
+// Autocomplete search using Nominatim
+destinationInput.addEventListener("input", async () => {
+  if(defaultToggle.checked) return; // disable typing if default is on
+  let query = destinationInput.value;
+  if(query.length < 2){ suggestionsDiv.innerHTML = ""; return; }
+  let resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`);
+  let results = await resp.json();
+  suggestionsDiv.innerHTML = "";
+  results.forEach(r => {
+      let div = document.createElement("div");
+      div.className = "autocomplete-suggestion";
+      div.innerText = r.display_name;
+      div.addEventListener("click", () => {
+          destinationInput.value = r.display_name;
+          destinationInput.dataset.lat = r.lat;
+          destinationInput.dataset.lon = r.lon;
+          suggestionsDiv.innerHTML = "";
+      });
+      suggestionsDiv.appendChild(div);
   });
-} else { 
-  alert("GPS not supported"); 
-}
+});
 
-// Function to get destination and create route
+// Function to start navigation
 async function go(){
-  if (!currentLocation) { alert("Still getting your location. Please wait."); return; }
-  let place = document.getElementById("destination").value;
-  if(!place){ alert("Type a destination"); return; }
+  if (!currentLocation) { alert("Waiting for location..."); return; }
 
-  // Get destination coordinates using OpenStreetMap Nominatim
-  let response = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(place));
-  let data = await response.json();
-  if(data.length===0){ alert("Place not found"); return; }
-  let lat = parseFloat(data[0].lat);
-  let lng = parseFloat(data[0].lon);
+  let lat, lon, destName;
+
+  if(defaultToggle.checked){
+    // Default route coordinates (14 Menton Road → Harissa Grill)
+    destName = "Harissa Grill, Melville";
+    lat = -26.2025;  // example lat
+    lon = 28.0425;   // example lon
+  } else {
+    lat = parseFloat(destinationInput.dataset.lat);
+    lon = parseFloat(destinationInput.dataset.lon);
+    destName = destinationInput.value;
+    if(!lat || !lon){ alert("Select a valid destination from suggestions"); return; }
+  }
 
   if(destinationMarker) map.removeLayer(destinationMarker);
-  destinationMarker = L.marker([lat,lng]).addTo(map).bindPopup(place).openPopup();
+  destinationMarker = L.marker([lat,lon]).addTo(map).bindPopup(destName).openPopup();
 
-  // Remove old route if exists
   if(routingControl) map.removeControl(routingControl);
 
-  // Create route using Leaflet Routing Machine
   routingControl = L.Routing.control({
-    waypoints: [
-      L.latLng(currentLocation[0], currentLocation[1]),
-      L.latLng(lat, lng)
-    ],
-    lineOptions: { styles: [{color: 'blue', weight: 5}] },
-    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-    show: false,
-    addWaypoints: false
+    waypoints: [ L.latLng(currentLocation[0], currentLocation[1]), L.latLng(lat, lon) ],
+    lineOptions: { styles:[{color:'blue', weight:5}] },
+    router: L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1' }),
+    show:false,
+    addWaypoints:false
   }).addTo(map);
 
-  // Speak destination
-  let speech = new SpeechSynthesisUtterance("Going to " + place);
+  let speech = new SpeechSynthesisUtterance("Going to " + destName);
   speechSynthesis.speak(speech);
 }
 
 startBtn.addEventListener("click", go);
+
+// Disable input if default route is checked
+defaultToggle.addEventListener("change", () => {
+  if(defaultToggle.checked){
+    destinationInput.value = "";
+    destinationInput.disabled = true;
+    suggestionsDiv.innerHTML = "";
+  } else {
+    destinationInput.disabled = false;
+  }
+});
 </script>
+
 </body>
 </html>
