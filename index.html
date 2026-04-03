@@ -1,35 +1,34 @@
 <!DOCTYPE html><html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro GPS Navigation v10</title>
+<title>Pro GPS Navigation v11</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 <style>
-* { box-sizing: border-box; }
-body { margin: 0; font-family: Arial, sans-serif; overflow: hidden; }
-#map { width: 100vw; height: 100vh; }
-#controls { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000; background: rgba(255,255,255,0.95); padding: 10px; border-radius: 14px; width: 92%; max-width: 460px; box-shadow: 0 4px 14px rgba(0,0,0,0.2); }
-input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ccc; font-size: 15px; margin-bottom: 8px; }
-#startBtn { display: block; width: 100%; padding: 12px; border: none; border-radius: 10px; background: #1e88e5; color: white; font-size: 16px; cursor: pointer; }
-#etaCircle { position: absolute; left: 14px; bottom: 95px; width: 92px; height: 92px; border-radius: 50%; background: rgba(30,136,229,0.95); color: white; z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 4px 14px rgba(0,0,0,0.3); text-align: center; }
-#kmLeft { font-size: 20px; font-weight: bold; line-height: 1; }
-#minsLeft { font-size: 15px; margin-top: 4px; }
-#recenterBtn { position: absolute; left: 24px; bottom: 192px; width: 58px; height: 58px; border: none; border-radius: 50%; background: rgba(30,136,229,0.95); color: white; font-size: 28px; font-weight: bold; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.3); cursor: pointer; }
-#turnBox { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); width: 88%; max-width: 420px; background: rgba(255,255,255,0.96); border-radius: 14px; padding: 12px; z-index: 1000; box-shadow: 0 4px 14px rgba(0,0,0,0.25); text-align: center; }
-#turnText { font-weight: bold; font-size: 16px; }
-#streetText { margin-top: 5px; color: #555; font-size: 14px; }
-#suggestions, #startSuggestions { position: absolute; top: 56px; left: 10px; right: 10px; background: white; border-radius: 10px; max-height: 180px; overflow-y: auto; box-shadow: 0 2px 10px rgba(0,0,0,0.15); z-index: 1001; }
-.suggestion { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
-.suggestion:hover { background: #f1f1f1; }
+body{margin:0;font-family:Arial,sans-serif;overflow:hidden;}
+#map{width:100vw;height:100vh;}
+#controls{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(255,255,255,0.95);padding:10px;border-radius:14px;width:92%;max-width:460px;box-shadow:0 4px 14px rgba(0,0,0,0.2);}
+#startLocation,#destination{width:100%;padding:10px;margin-bottom:8px;border-radius:10px;border:1px solid #ccc;font-size:15px;}
+#startBtn{display:block;width:100%;padding:12px;border:none;border-radius:10px;background:#1e88e5;color:white;font-size:16px;cursor:pointer;}
+#etaCircle{position:absolute;left:14px;bottom:95px;width:92px;height:92px;border-radius:50%;background:rgba(30,136,229,0.95);color:white;z-index:1000;display:flex;flex-direction:column;justify-content:center;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,0.3);text-align:center;}
+#kmLeft{font-size:20px;font-weight:bold;line-height:1;}
+#minsLeft{font-size:15px;margin-top:4px;}
+#recenterBtn{position:absolute;left:24px;bottom:192px;width:58px;height:58px;border:none;border-radius:50%;background:rgba(30,136,229,0.95);color:white;font-size:28px;font-weight:bold;z-index:1000;box-shadow:0 4px 14px rgba(0,0,0,0.3);cursor:pointer;}
+#turnBox{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;background:rgba(255,255,255,0.96);border-radius:14px;padding:12px;z-index:1000;box-shadow:0 4px 14px rgba(0,0,0,0.25);text-align:center;}
+#turnText{font-weight:bold;font-size:16px;}
+#streetText{margin-top:5px;color:#555;font-size:14px;}
+#suggestions,#startSuggestions{position:absolute;top:56px;left:10px;right:10px;background:white;border-radius:10px;max-height:180px;overflow-y:auto;box-shadow:0 2px 10px rgba(0,0,0,0.15);z-index:1001;}
+.suggestion{padding:10px;border-bottom:1px solid #eee;cursor:pointer;}
+.suggestion:hover{background:#f1f1f1;}
 </style>
 </head>
 <body>
 <div id="controls">
-  <input id="startLocation" placeholder="Starting point (leave blank for current location)">
-  <input id="destination" placeholder="Destination">
-  <button id="startBtn">Start</button>
-  <div id="startSuggestions"></div>
-  <div id="suggestions"></div>
+<input id="startLocation" placeholder="Starting point (leave blank for current location)">
+<input id="destination" placeholder="Destination">
+<button id="startBtn">Start</button>
+<div id="startSuggestions"></div>
+<div id="suggestions"></div>
 </div>
 <button id="recenterBtn">⌖</button>
 <div id="etaCircle"><div id="kmLeft">0 km</div><div id="minsLeft">0 min</div></div>
@@ -38,31 +37,20 @@ input { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #ccc;
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
 <script>
-const map=L.map('map',{zoomControl:false,minZoom:4,maxZoom:18,worldCopyJump:false,inertia:true,inertiaDeceleration:2500}).setView([-29,24],5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
-let currentLocation=null,destinationCoords=null,startCoords=null,routingControl=null,userMovedMap=false,lastInstruction=-1;
-const startInput=document.getElementById('startLocation');
-const destinationInput=document.getElementById('destination');
-const startSuggestions=document.getElementById('startSuggestions');
-const suggestions=document.getElementById('suggestions');
-const turnText=document.getElementById('turnText');
-const streetText=document.getElementById('streetText');
-const kmLeft=document.getElementById('kmLeft');
-const minsLeft=document.getElementById('minsLeft');
-const recenterBtn=document.getElementById('recenterBtn');
-map.on('dragstart',()=>{userMovedMap=true;});
+const map=L.map('map',{zoomControl:false,minZoom:4,maxZoom:18,inertia:true,inertiaDeceleration:2500}).setView([-29,24],5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);let currentLocation=null,destinationCoords=null,startCoords=null,routingControl=null; const startInput=document.getElementById('startLocation'); const destinationInput=document.getElementById('destination'); const startSuggestions=document.getElementById('startSuggestions'); const suggestions=document.getElementById('suggestions'); const kmLeft=document.getElementById('kmLeft'); const minsLeft=document.getElementById('minsLeft'); const recenterBtn=document.getElementById('recenterBtn');
+
 navigator.geolocation.watchPosition(pos=>{currentLocation=[pos.coords.latitude,pos.coords.longitude];},err=>{}, {enableHighAccuracy:true,maximumAge:1000,timeout:10000});
-async function searchPlaces(query){if(query.length<2)return[];const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&q=${encodeURIComponent(query)}`);return await res.json();}
-function showSuggestions(list,container,inputField,coordsVar){container.innerHTML='';list.forEach(place=>{
-const div=document.createElement('div');div.className='suggestion';const road=place.address?.road||'',suburb=place.address?.suburb||place.address?.city||'',house=place.address?.house_number||'';div.textContent=[house,road,suburb].filter(Boolean).join(' ')||place.display_name;
-div.onclick=()=>{inputField.value=div.textContent;coordsVar[0]=parseFloat(place.lat);coordsVar[1]=parseFloat(place.lon);container.innerHTML='';};container.appendChild(div);});}
-startInput.addEventListener('input',async()=>{const text=startInput.value.trim();if(text.length<2){startSuggestions.innerHTML='';return;}const list=await searchPlaces(text);showSuggestions(list,startSuggestions,startCoords,startCoords);});
-destinationInput.addEventListener('input',async()=>{const text=destinationInput.value.trim();if(text.length<2){suggestions.innerHTML='';return;}const list=await searchPlaces(text);showSuggestions(list,suggestions,destinationInput,destinationCoords);});
-function makeRoute(){if(!destinationCoords)return; if(routingControl)map.removeControl(routingControl); const routeStart=startCoords||currentLocation;
-routingControl=L.Routing.control({waypoints:[L.latLng(routeStart[0],routeStart[1]),L.latLng(destinationCoords[0],destinationCoords[1])],lineOptions:{styles:[{color:'#1e88e5',weight:7,opacity:0.9}]},addWaypoints:false,routeWhileDragging:true,fitSelectedRoutes:true,show:false,createMarker:(i,wp)=>i===1?L.marker(wp.latLng):null}).addTo(map);
-routingControl.on('routesfound',e=>{const route=e.routes[0];kmLeft.textContent=(route.summary.totalDistance/1000).toFixed(1)+' km';minsLeft.textContent=Math.ceil(route.summary.totalTime/60)+' min';});}
-document.getElementById('startBtn').addEventListener('click',makeRoute);
-recenterBtn.addEventListener('click',()=>{if(routingControl)map.fitBounds(routingControl.getBounds(),{padding:[70,70]});});
-</script>
+
+async function searchPlaces(query){if(query.length<2)return[];const res=await fetch(https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&q=${encodeURIComponent(query)});return await res.json();}
+
+function fillSuggestions(inputElem,suggestionsElem,setCoords){inputElem.addEventListener('input',async()=>{ const text=inputElem.value.trim(); suggestionsElem.innerHTML=''; if(text.length<2)return; const places=await searchPlaces(text); places.forEach(place=>{ const div=document.createElement('div'); div.className='suggestion'; const road=place.address?.road||'',suburb=place.address?.suburb||place.address?.city||'',house=place.address?.house_number||''; div.textContent=[house,road,suburb].filter(Boolean).join(' ')||place.display_name; div.onclick=()=>{inputElem.value=div.textContent;setCoords([parseFloat(place.lat),parseFloat(place.lon)]);suggestionsElem.innerHTML='';}; suggestionsElem.appendChild(div); });});}
+
+fillSuggestions(startInput,startSuggestions,val=>startCoords=val); fillSuggestions(destinationInput,suggestions,val=>destinationCoords=val);
+
+function makeRoute(){ if(!destinationCoords)return; const routeStart=startCoords||currentLocation; if(!routeStart)return; if(routingControl)map.removeControl(routingControl); routingControl=L.Routing.control({ waypoints:[L.latLng(routeStart[0],routeStart[1]),L.latLng(destinationCoords[0],destinationCoords[1])], lineOptions:{styles:[{color:'#1e88e5',weight:7,opacity:0.9}]}, addWaypoints:false,routeWhileDragging:true,fitSelectedRoutes:true,show:false, createMarker:(i,wp)=>i===1?L.marker(wp.latLng):null }).addTo(map); routingControl.on('routesfound',e=>{ const route=e.routes[0]; kmLeft.textContent=(route.summary.totalDistance/1000).toFixed(1)+' km'; minsLeft.textContent=Math.ceil(route.summary.totalTime/60)+' min'; });}
+
+document.getElementById('startBtn').addEventListener('click',makeRoute); recenterBtn.addEventListener('click',()=>{if(routingControl)map.fitBounds(routingControl.getBounds(),{padding:[70,70]});}); </script>
+
 </body>
 </html>
