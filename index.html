@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My GPS App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { margin:0; font-family: Arial; text-align:center; background:#f4f4f4; }
+    h1 { background:#1e88e5; color:white; margin:0; padding:15px; }
+    input { width:80%; padding:12px; margin-top:10px; border:1px solid #ccc; border-radius:8px; }
+    button { padding:12px 20px; margin:10px; border:none; border-radius:8px; background:#1e88e5; color:white; font-size:16px; }
+    #map { height:70vh; width:100%; margin-top:10px; }
+    #status { margin:10px; font-weight:bold; color:#555; }
+  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body>
+
+<h1>My GPS App</h1>
+<input id="destination" placeholder="Type destination (e.g., Harissa Grill Melville)">
+<button id="startBtn" disabled>Start</button>
+<div id="status">Getting your location...</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+let map = L.map('map').setView([-26.2041, 28.0473], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors' }).addTo(map);
+
+let userMarker, destinationMarker, routeLine, currentLocation = null;
+const startBtn = document.getElementById("startBtn");
+const statusDiv = document.getElementById("status");
+
+if(navigator.geolocation){
+  navigator.geolocation.watchPosition(pos => {
+    let lat = pos.coords.latitude;
+    let lng = pos.coords.longitude;
+    currentLocation = [lat, lng];
+    if(!userMarker){ userMarker = L.marker(currentLocation).addTo(map).bindPopup("You are here").openPopup(); }
+    else{ userMarker.setLatLng(currentLocation); }
+    map.setView(currentLocation, 15);
+    if(destinationMarker){ if(routeLine) map.removeLayer(routeLine); routeLine = L.polyline([currentLocation, destinationMarker.getLatLng()], {color:"blue", weight:5}).addTo(map); }
+    startBtn.disabled = false;
+    statusDiv.innerText = "Location ready! Type your destination and press Start.";
+  }, error => { statusDiv.innerText = "Unable to get location. Check your GPS and permissions."; });
+} else { alert("GPS not supported"); }
+
+async function go(){
+  if (!currentLocation) { alert("Still getting your location. Please wait a few seconds."); return; }
+  let place = document.getElementById("destination").value;
+  if(!place){ alert("Type a destination"); return; }
+  let response = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(place));
+  let data = await response.json();
+  if(data.length===0){ alert("Place not found"); return; }
+  let lat = parseFloat(data[0].lat);
+  let lng = parseFloat(data[0].lon);
+  if(destinationMarker) map.removeLayer(destinationMarker);
+  destinationMarker = L.marker([lat,lng], { icon:L.icon({ iconUrl:'https://cdn-icons-png.flaticon.com/512/684/684908.png', iconSize:[40,40] }) }).addTo(map).bindPopup(place).openPopup();
+  if(routeLine) map.removeLayer(routeLine);
+  routeLine = L.polyline([currentLocation, [lat,lng]], { color:"blue", weight:5 }).addTo(map);
+  map.fitBounds(routeLine.getBounds());
+  let speech = new SpeechSynthesisUtterance("Going to " + place);
+  speechSynthesis.speak(speech);
+}
+startBtn.addEventListener("click", go);
+</script>
+</body>
+</html>
