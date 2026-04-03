@@ -23,8 +23,8 @@
       background: rgba(255,255,255,0.95);
       padding: 10px;
       border-radius: 14px;
-      width: 88%;
-      max-width: 420px;
+      width: 92%;
+      max-width: 460px;
       box-shadow: 0 4px 14px rgba(0,0,0,0.2);
     }
 
@@ -37,19 +37,15 @@
     }
 
     #startBtn {
-      padding: 10px 14px;
-      border: none;
-      border-radius: 10px;
-      background: #1e88e5;
-      color: white;
-      font-size: 15px;
-      margin-left: 6px;
+      display: block;
+      width: 100%;
+      margin-top: 10px;
     }
 
     #etaCircle {
       position: absolute;
       left: 14px;
-      top: 110px;
+      bottom: 95px;
       width: 92px;
       height: 92px;
       border-radius: 50%;
@@ -123,10 +119,13 @@
     }
   </style></head>
 <body><div id="controls">
-  <input id="startLocation" placeholder="Starting point (leave blank for current location)" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;margin-bottom:8px;">
-  <input id="destination" placeholder="Search destination...">
+  <div style="display:flex;flex-direction:column;gap:8px;">
+  <input id="startLocation" placeholder="Starting point (leave blank for current location)" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;">
+  <input id="destination" placeholder="Destination" style="width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;">
+</div>
   <button id="startBtn">Start</button>
-  <div id="suggestions"></div>
+  <div id="startSuggestions" style="margin-top:8px;"></div>
+  <div id="suggestions" style="margin-top:8px;"></div>
 </div><div id="etaCircle">
   <div id="kmLeft">0 km</div>
   <div id="minsLeft">0 min</div>
@@ -134,9 +133,16 @@
   <div id="turnText">Waiting for route...</div>
   <div id="streetText"></div>
 </div><div id="map"></div><script src="https://unpkg.com/leaflet/dist/leaflet.js"></script><script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script><script>
+const southAfricaBounds = [[-35, 16], [-22, 33]];
+
 const map = L.map('map', {
-  zoomControl: false
-}).setView([-26.2041, 28.0473], 14);
+  zoomControl: false,
+  minZoom: 5,
+  maxZoom: 19,
+  worldCopyJump: true,
+  maxBounds: southAfricaBounds,
+  maxBoundsViscosity: 0.6
+}).setView([-29.0, 24.0], 5);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
@@ -153,6 +159,7 @@ let lastInstruction = -1;
 const startInput = document.getElementById('startLocation');
 const destinationInput = document.getElementById('destination');
 let startCoords = null;
+const startSuggestions = document.getElementById('startSuggestions');
 const suggestions = document.getElementById('suggestions');
 const turnText = document.getElementById('turnText');
 const streetText = document.getElementById('streetText');
@@ -189,14 +196,8 @@ navigator.geolocation.watchPosition(pos => {
     userMarker.setLatLng(currentLocation);
   }
 
-  if (!userMovedMap && routingControl) {
-      const bounds = routingControl.getBounds();
-      map.fitBounds(bounds, {
-        padding: [60, 60],
-        animate: true
-      });
-    } else if (!userMovedMap) {
-      map.setView(currentLocation, 16, { animate: true });
+  // Do not automatically zoom or move the map before a route exists
+    if (!routingControl) return;);
     }
 
   // Live recalculation if user moves away from route
@@ -222,11 +223,11 @@ async function searchPlaces(query) {
 
 startInput.addEventListener('input', async () => {
   const text = startInput.value.trim();
+  startSuggestions.innerHTML = '';
 
   if (text.length < 2) return;
 
   const places = await searchPlaces(text);
-  suggestions.innerHTML = '';
 
   places.forEach(place => {
     const div = document.createElement('div');
@@ -241,10 +242,10 @@ startInput.addEventListener('input', async () => {
     div.onclick = () => {
       startInput.value = div.textContent;
       startCoords = [parseFloat(place.lat), parseFloat(place.lon)];
-      suggestions.innerHTML = '';
+      startSuggestions.innerHTML = '';
     };
 
-    suggestions.appendChild(div);
+    startSuggestions.appendChild(div);
   });
 });
 
@@ -286,9 +287,9 @@ function makeRoute(isRecalculation = false) {
     map.removeControl(routingControl);
   }
 
-  routingControl = L.Routing.control({
-    const routeStart = startCoords || currentLocation;
+  const routeStart = startCoords || currentLocation;
 
+  routingControl = L.Routing.control({
     waypoints: [
       L.latLng(routeStart[0], routeStart[1]),
       L.latLng(destinationCoords[0], destinationCoords[1])
