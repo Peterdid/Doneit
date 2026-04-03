@@ -52,6 +52,23 @@
       cursor: pointer;
     }
 
+    #recenterBtn {
+      position: absolute;
+      left: 24px;
+      bottom: 192px;
+      width: 58px;
+      height: 58px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(30,136,229,0.95);
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+      z-index: 1000;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+      cursor: pointer;
+    }
+
     #etaCircle {
       position: absolute;
       left: 14px;
@@ -129,7 +146,9 @@
   <div id="startSuggestions" class="suggestions"></div>  <input id="destination" class="searchBox" placeholder="Destination">
   <div id="destinationSuggestions" class="suggestions"></div><button id="startBtn">Start Route</button>
 
-</div><div id="etaCircle">
+</div><button id="recenterBtn">⌖</button>
+
+<div id="etaCircle">
   <div id="kmLeft">0 km</div>
   <div id="minsLeft">0 min</div>
 </div><div id="turnBox">
@@ -137,14 +156,18 @@
   <div id="streetText"></div>
 </div><div id="map"></div><script src="https://unpkg.com/leaflet/dist/leaflet.js"></script><script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script><script>
   const southAfricaBounds = [[-35, 16], [-22, 33]];
+  const southAfricaPaddingBounds = L.latLngBounds(southAfricaBounds);
 
   const map = L.map('map', {
     zoomControl: false,
-    minZoom: 5,
+    minZoom: 4,
     maxZoom: 18,
-    maxBounds: southAfricaBounds,
-    maxBoundsViscosity: 0.5
-  }).setView([-29, 24], 5);
+    worldCopyJump: false,
+    inertia: true,
+    inertiaDeceleration: 2500,
+    inertiaMaxSpeed: 1500,
+    maxBoundsViscosity: 0.0
+  }).setView([-30, 24], 5);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
@@ -168,16 +191,12 @@
     clearTimeout(recenterTimer);
   });
 
-  map.on('dragend', () => {
-    if (!routingControl) return;
+  map.on('movestart', () => {
+    clearTimeout(recenterTimer);
+  });
 
-    recenterTimer = setTimeout(() => {
-      followRoute = true;
-      const bounds = routingControl.getBounds();
-      if (bounds) {
-        map.fitBounds(bounds, { padding: [60, 60] });
-      }
-    }, 5000);
+  map.on('moveend', () => {
+    // User can freely move the map without it snapping back automatically
   });
 
   navigator.geolocation.watchPosition(position => {
@@ -296,8 +315,13 @@
       if (followRoute) {
         const bounds = routingControl.getBounds();
         if (bounds) {
-          map.fitBounds(bounds, { padding: [60, 60] });
+          map.flyToBounds(bounds, {
+            padding: [70, 70],
+            duration: 1.1,
+            maxZoom: 15
+          });
         }
+      }
       }
 
       if (recalculating) {
@@ -307,9 +331,24 @@
     });
   }
 
+  document.getElementById('recenterBtn').addEventListener('click', () => {
+    if (routingControl) {
+      const bounds = routingControl.getBounds();
+      if (bounds) {
+        map.flyToBounds(bounds, {
+          padding: [70, 70],
+          duration: 1
+        });
+      }
+    } else if (currentLocation) {
+      map.flyTo(currentLocation, 15, { duration: 1 });
+    }
+  });
+
   document.getElementById('startBtn').addEventListener('click', () => {
     if (!destinationCoords) {
-      alert('Please choose a destination');
+      document.getElementById('turnText').textContent = 'Enter a destination to start navigation';
+      document.getElementById('streetText').textContent = '';
       return;
     }
 
