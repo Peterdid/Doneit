@@ -1,147 +1,215 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>GPS App - Smart Navigation</title>
+  <title>Pro GPS Navigation v4</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { margin:0; font-family: Arial; text-align:center; background:#f4f4f4; }
-    h1 { background:#1e88e5; color:white; margin:0; padding:15px; }
-    #destination { width:80%; padding:12px; margin-top:10px; border:1px solid #ccc; border-radius:8px; }
-    #startBtn { padding:12px 20px; margin:10px; border:none; border-radius:8px; background:#1e88e5; color:white; font-size:16px; }
-    #defaultToggle { margin:10px; }
+    body { margin:0; font-family: Arial; background:#f4f4f4; }
+    h1 { background:#1e88e5; color:white; margin:0; padding:15px; text-align:center; }
+    #controls { text-align:center; margin:10px; }
+    #destination { width:60%; padding:8px; border:1px solid #ccc; border-radius:6px; }
+    #startBtn { padding:8px 16px; margin-left:5px; border:none; border-radius:6px; background:#1e88e5; color:white; font-size:14px; }
     #map { height:70vh; width:100%; margin-top:10px; }
-    #status { margin:10px; font-weight:bold; color:#555; }
-    .autocomplete-suggestions { position: absolute; background: white; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 9999; width: 80%; margin: auto; left: 0; right: 0; }
-    .autocomplete-suggestion { padding: 8px; cursor: pointer; }
-    .autocomplete-suggestion:hover { background: #eee; }
+    #status, #eta, #turn, #distance, #street { margin:5px; font-weight:bold; color:#555; text-align:center; }
+    .autocomplete-suggestions { position:absolute; background:white; border:1px solid #ccc; max-height:200px; overflow-y:auto; z-index:9999; width:60%; left:20%; }
+    .autocomplete-suggestion { padding:5px; cursor:pointer; }
+    .autocomplete-suggestion:hover { background:#eee; }
   </style>
-
-  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 </head>
 <body>
 
-<h1>GPS App - Smart Navigation</h1>
+<h1>Pro GPS Navigation v4</h1>
 
-<label><input type="checkbox" id="defaultToggle"> Use default route (14 Menton Road → Harissa Grill)</label><br>
-<input id="destination" placeholder="Type destination (city, street...)">
-<div class="autocomplete-suggestions" id="suggestions"></div>
-<button id="startBtn" disabled>Start</button>
+<div id="controls">
+  <label><input type="checkbox" id="defaultToggle"> Use default route (14 Menton → Harissa Grill)</label><br><br>
+  <input id="destination" placeholder="Type destination..." autocomplete="off">
+  <div class="autocomplete-suggestions" id="suggestions"></div>
+  <button id="startBtn" disabled>Start</button>
+</div>
+
 <div id="status">Getting your location...</div>
+<div id="eta"></div>
+<div id="turn"></div>
+<div id="distance"></div>
+<div id="street"></div>
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
 
 <script>
-let map = L.map('map', { zoomControl: true }).setView([-26.2041, 28.0473], 13);
+let map = L.map('map', { zoomControl:true }).setView([-26.2041,28.0473],13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'© OpenStreetMap contributors' }).addTo(map);
 
-let userMarker, destinationMarker, currentLocation = null;
-let routingControl = null;
-let mapCentered = false;
+let userMarker, destinationMarker, currentLocation=null;
+let routingControl=null, userPanned=false, panTimeout=null;
+let userCountryCode='za';
+let lastInstructionIndex=-1;
+let nextTurnMarker=null, progressLine=null;
+
 const startBtn = document.getElementById("startBtn");
 const statusDiv = document.getElementById("status");
+const etaDiv = document.getElementById("eta");
+const turnDiv = document.getElementById("turn");
+const distanceDiv = document.getElementById("distance");
+const streetDiv = document.getElementById("street");
 const destinationInput = document.getElementById("destination");
 const suggestionsDiv = document.getElementById("suggestions");
 const defaultToggle = document.getElementById("defaultToggle");
 
-// Get user location
+// --- Helpers ---
+async function getCountryCode(lat,lon){
+  let res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=3`);
+  let data = await res.json();
+  if(data.address && data.address.country_code) userCountryCode=data.address.country_code;
+}
+
+function fitRoute(){
+  if(routingControl){
+    const bounds = routingControl.getPlan().getWaypoints().map(wp=>[wp.latLng.lat,wp.latLng.lng]);
+    map.fitBounds(bounds,{padding:[50,50]});
+  }
+}
+
+// --- Smooth Moving User Marker ---
+function updateUserMarker(latlng){
+  if(!userMarker){
+    userMarker = L.marker(latlng).addTo(map).bindPopup("You are here").openPopup();
+  } else {
+    userMarker.setLatLng(latlng);
+  }
+}
+
+// --- GPS Tracking ---
 if(navigator.geolocation){
-  navigator.geolocation.watchPosition(pos => {
-    let lat = pos.coords.latitude;
-    let lng = pos.coords.longitude;
-    currentLocation = [lat, lng];
+  navigator.geolocation.watchPosition(async pos=>{
+    let lat=pos.coords.latitude, lng=pos.coords.longitude;
+    currentLocation=[lat,lng];
 
-    if(!userMarker){ 
-        userMarker = L.marker(currentLocation).addTo(map).bindPopup("You are here").openPopup(); 
-    } else { 
-        userMarker.setLatLng(currentLocation); 
+    updateUserMarker(currentLocation);
+    if(!userPanned){ map.panTo(currentLocation,{animate:true,duration:1}); }
+    startBtn.disabled=false;
+    statusDiv.innerText="Location ready! Type destination or use default route.";
+
+    if(routingControl){
+      const route = routingControl.getRoutes()[0];
+      if(route && route.instructions){
+        const userLatLng = L.latLng(currentLocation[0], currentLocation[1]);
+        let closestInstrIndex=-1;
+        let minDistance=Infinity;
+        route.instructions.forEach((instr,i)=>{
+          const instrLatLng = L.latLng(instr.lat, instr.lon);
+          const dist = userLatLng.distanceTo(instrLatLng);
+          if(dist<minDistance){ closestInstrIndex=i; minDistance=dist; minDistance=dist; }
+        });
+
+        if(closestInstrIndex!==lastInstructionIndex){
+          lastInstructionIndex=closestInstrIndex;
+          const instr=route.instructions[closestInstrIndex];
+          turnDiv.innerText=instr.text;
+          distanceDiv.innerText=`Next turn in ${Math.round(minDistance)} meters`;
+          streetDiv.innerText=`Street: ${instr.name || 'unknown'}`;
+          let speech=new SpeechSynthesisUtterance(instr.text);
+          speechSynthesis.speak(speech);
+
+          // Highlight next turn arrow
+          if(nextTurnMarker) map.removeLayer(nextTurnMarker);
+          nextTurnMarker=L.polyline([[instr.lat-0.00005,instr.lon-0.00005],[instr.lat+0.00005,instr.lon+0.00005]],{color:'red',weight:5}).addTo(map);
+        }
+
+        // --- Update Progress Line ---
+        if(progressLine) map.removeLayer(progressLine);
+        let past=[], future=[];
+        for(let i=0;i<route.coordinates.length;i++){
+          let c=[route.coordinates[i].lat,route.coordinates[i].lng];
+          if(i<closestInstrIndex) past.push(c);
+          else future.push(c);
+        }
+        if(past.length>0) L.polyline(past,{color:'gray',weight:4}).addTo(map);
+        if(future.length>0) progressLine=L.polyline([currentLocation,...future],{color:'blue',weight:5}).addTo(map);
+
+        // --- Simulated Traffic ---
+        for(let i=0;i<future.length;i+=5){
+          let segment=[future[i],future[i+1]?future[i+1]:future[i]];
+          L.polyline(segment,{color:'orange',weight:4}).addTo(map);
+        }
+
+        etaDiv.innerText=`ETA: ${Math.round(route.summary.totalTime/60)} minutes`;
+      }
     }
 
-    if(!mapCentered){
-        map.setView(currentLocation, 15);
-        mapCentered = true;
-    } else {
-        map.panTo(currentLocation, {animate:true, duration:1});
-    }
-
-    startBtn.disabled = false;
-    statusDiv.innerText = "Location ready! Start typing a destination or use default route.";
-  }, error => { statusDiv.innerText = "Unable to get location. Check GPS & permissions."; });
+  },()=>{ statusDiv.innerText="Unable to get location. Check GPS & permissions."; });
 } else { alert("GPS not supported"); }
 
-// Autocomplete search using Nominatim
-destinationInput.addEventListener("input", async () => {
-  if(defaultToggle.checked) return; // disable typing if default is on
-  let query = destinationInput.value;
-  if(query.length < 2){ suggestionsDiv.innerHTML = ""; return; }
-  let resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`);
-  let results = await resp.json();
-  suggestionsDiv.innerHTML = "";
-  results.forEach(r => {
-      let div = document.createElement("div");
-      div.className = "autocomplete-suggestion";
-      div.innerText = r.display_name;
-      div.addEventListener("click", () => {
-          destinationInput.value = r.display_name;
-          destinationInput.dataset.lat = r.lat;
-          destinationInput.dataset.lon = r.lon;
-          suggestionsDiv.innerHTML = "";
-      });
-      suggestionsDiv.appendChild(div);
+map.on('dragstart',()=>{ userPanned=true; if(panTimeout) clearTimeout(panTimeout); });
+map.on('dragend',()=>{ panTimeout=setTimeout(()=>{ userPanned=false; fitRoute(); },5000); });
+
+// --- Autocomplete ---
+destinationInput.addEventListener("input", async ()=>{
+  if(defaultToggle.checked) return;
+  let query=destinationInput.value;
+  if(query.length<2){ suggestionsDiv.innerHTML=""; return; }
+  let res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&countrycodes=${userCountryCode}`);
+  let results=await res.json();
+  suggestionsDiv.innerHTML="";
+  results.forEach(r=>{
+    let div=document.createElement("div");
+    div.className="autocomplete-suggestion";
+    div.innerText=r.display_name;
+    div.addEventListener("click",()=>{
+      destinationInput.value=r.display_name;
+      destinationInput.dataset.lat=r.lat;
+      destinationInput.dataset.lon=r.lon;
+      suggestionsDiv.innerHTML="";
+    });
+    suggestionsDiv.appendChild(div);
   });
 });
 
-// Function to start navigation
+// --- Navigation ---
 async function go(){
-  if (!currentLocation) { alert("Waiting for location..."); return; }
+  if(!currentLocation){ alert("Waiting for location..."); return; }
 
   let lat, lon, destName;
-
   if(defaultToggle.checked){
-    // Default route coordinates (14 Menton Road → Harissa Grill)
-    destName = "Harissa Grill, Melville";
-    lat = -26.2025;  // example lat
-    lon = 28.0425;   // example lon
+    destName="Harissa Grill, Melville";
+    lat=-26.2025; lon=28.0425;
   } else {
-    lat = parseFloat(destinationInput.dataset.lat);
-    lon = parseFloat(destinationInput.dataset.lon);
-    destName = destinationInput.value;
-    if(!lat || !lon){ alert("Select a valid destination from suggestions"); return; }
+    lat=parseFloat(destinationInput.dataset.lat);
+    lon=parseFloat(destinationInput.dataset.lon);
+    destName=destinationInput.value;
+    if(!lat||!lon){ alert("Select valid destination"); return; }
   }
 
   if(destinationMarker) map.removeLayer(destinationMarker);
-  destinationMarker = L.marker([lat,lon]).addTo(map).bindPopup(destName).openPopup();
+  destinationMarker=L.marker([lat,lon]).addTo(map).bindPopup(destName).openPopup();
 
   if(routingControl) map.removeControl(routingControl);
 
-  routingControl = L.Routing.control({
-    waypoints: [ L.latLng(currentLocation[0], currentLocation[1]), L.latLng(lat, lon) ],
-    lineOptions: { styles:[{color:'blue', weight:5}] },
-    router: L.Routing.osrmv1({ serviceUrl:'https://router.project-osrm.org/route/v1' }),
+  routingControl=L.Routing.control({
+    waypoints:[L.latLng(currentLocation[0],currentLocation[1]),L.latLng(lat,lon)],
+    router:L.Routing.osrmv1({serviceUrl:'https://router.project-osrm.org/route/v1'}),
+    lineOptions:{styles:[{color:'blue',weight:5}]},
     show:false,
     addWaypoints:false
   }).addTo(map);
 
-  let speech = new SpeechSynthesisUtterance("Going to " + destName);
-  speechSynthesis.speak(speech);
+  fitRoute();
+  routingControl.on('routesfound', function(e){
+    lastInstructionIndex=-1;
+    etaDiv.innerText=`ETA: ${Math.round(e.routes[0].summary.totalTime/60)} minutes`;
+  });
 }
 
 startBtn.addEventListener("click", go);
 
-// Disable input if default route is checked
-defaultToggle.addEventListener("change", () => {
+defaultToggle.addEventListener("change", ()=>{
   if(defaultToggle.checked){
-    destinationInput.value = "";
-    destinationInput.disabled = true;
-    suggestionsDiv.innerHTML = "";
-  } else {
-    destinationInput.disabled = false;
-  }
+    destinationInput.value=""; destinationInput.disabled=true; suggestionsDiv.innerHTML="";
+  } else { destinationInput.disabled=false; }
 });
 </script>
-
 </body>
 </html>
