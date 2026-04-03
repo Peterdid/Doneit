@@ -123,6 +123,7 @@
     }
   </style></head>
 <body><div id="controls">
+  <input id="startLocation" placeholder="Starting point (leave blank for current location)" style="width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;margin-bottom:8px;">
   <input id="destination" placeholder="Search destination...">
   <button id="startBtn">Start</button>
   <div id="suggestions"></div>
@@ -133,7 +134,9 @@
   <div id="turnText">Waiting for route...</div>
   <div id="streetText"></div>
 </div><div id="map"></div><script src="https://unpkg.com/leaflet/dist/leaflet.js"></script><script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script><script>
-const map = L.map('map').setView([-26.2041, 28.0473], 14);
+const map = L.map('map', {
+  zoomControl: false
+}).setView([-26.2041, 28.0473], 14);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
@@ -147,7 +150,9 @@ let userMovedMap = false;
 let recenterTimeout = null;
 let lastInstruction = -1;
 
+const startInput = document.getElementById('startLocation');
 const destinationInput = document.getElementById('destination');
+let startCoords = null;
 const suggestions = document.getElementById('suggestions');
 const turnText = document.getElementById('turnText');
 const streetText = document.getElementById('streetText');
@@ -160,10 +165,17 @@ map.on('dragstart', () => {
 });
 
 map.on('dragend', () => {
+  // Before a route starts, let the user explore freely with no recentering
+  if (!routingControl) return;
+
   recenterTimeout = setTimeout(() => {
     userMovedMap = false;
-    if (currentLocation) {
-      map.setView(currentLocation, map.getZoom(), { animate: true });
+    if (routingControl) {
+      const bounds = routingControl.getBounds();
+      map.fitBounds(bounds, {
+        padding: [60, 60],
+        animate: true
+      });
     }
   }, 5000);
 });
@@ -202,11 +214,39 @@ navigator.geolocation.watchPosition(pos => {
 
 async function searchPlaces(query) {
   const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=za&q=${encodeURIComponent(query)}`
+    `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&extratags=1&namedetails=1&limit=8&countrycodes=za&q=${encodeURIComponent(query)}`
   );
 
   return await response.json();
 }
+
+startInput.addEventListener('input', async () => {
+  const text = startInput.value.trim();
+
+  if (text.length < 2) return;
+
+  const places = await searchPlaces(text);
+  suggestions.innerHTML = '';
+
+  places.forEach(place => {
+    const div = document.createElement('div');
+    div.className = 'suggestion';
+
+    const road = place.address?.road || '';
+    const suburb = place.address?.suburb || place.address?.city || '';
+    const house = place.address?.house_number || '';
+
+    div.textContent = [house, road, suburb].filter(Boolean).join(' ') || place.display_name;
+
+    div.onclick = () => {
+      startInput.value = div.textContent;
+      startCoords = [parseFloat(place.lat), parseFloat(place.lon)];
+      suggestions.innerHTML = '';
+    };
+
+    suggestions.appendChild(div);
+  });
+});
 
 destinationInput.addEventListener('input', async () => {
   const text = destinationInput.value.trim();
@@ -222,10 +262,14 @@ destinationInput.addEventListener('input', async () => {
   places.forEach(place => {
     const div = document.createElement('div');
     div.className = 'suggestion';
-    div.textContent = place.display_name;
+    const road = place.address?.road || '';
+    const suburb = place.address?.suburb || place.address?.city || '';
+    const house = place.address?.house_number || '';
+
+    div.textContent = [house, road, suburb].filter(Boolean).join(' ') || place.display_name;
 
     div.onclick = () => {
-      destinationInput.value = place.display_name;
+      destinationInput.value = div.textContent;
       destinationCoords = [parseFloat(place.lat), parseFloat(place.lon)];
       suggestions.innerHTML = '';
     };
@@ -235,6 +279,7 @@ destinationInput.addEventListener('input', async () => {
 });
 
 function makeRoute(isRecalculation = false) {
+  // Once a route starts, focus on the route unless the user manually pans the map
   if (!currentLocation || !destinationCoords) return;
 
   if (routingControl) {
@@ -242,8 +287,10 @@ function makeRoute(isRecalculation = false) {
   }
 
   routingControl = L.Routing.control({
+    const routeStart = startCoords || currentLocation;
+
     waypoints: [
-      L.latLng(currentLocation[0], currentLocation[1]),
+      L.latLng(routeStart[0], routeStart[1]),
       L.latLng(destinationCoords[0], destinationCoords[1])
     ],
     lineOptions: {
