@@ -1,56 +1,119 @@
 <!DOCTYPE html><html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pro GPS Navigation v11</title>
+<title>Pro GPS Navigation Professional</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
 <style>
 body{margin:0;font-family:Arial,sans-serif;overflow:hidden;}
 #map{width:100vw;height:100vh;}
-#controls{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(255,255,255,0.95);padding:10px;border-radius:14px;width:92%;max-width:460px;box-shadow:0 4px 14px rgba(0,0,0,0.2);}
-#startLocation,#destination{width:100%;padding:10px;margin-bottom:8px;border-radius:10px;border:1px solid #ccc;font-size:15px;}
-#startBtn{display:block;width:100%;padding:12px;border:none;border-radius:10px;background:#1e88e5;color:white;font-size:16px;cursor:pointer;}
-#etaCircle{position:absolute;left:14px;bottom:95px;width:92px;height:92px;border-radius:50%;background:rgba(30,136,229,0.95);color:white;z-index:1000;display:flex;flex-direction:column;justify-content:center;align-items:center;box-shadow:0 4px 14px rgba(0,0,0,0.3);text-align:center;}
-#kmLeft{font-size:20px;font-weight:bold;line-height:1;}
-#minsLeft{font-size:15px;margin-top:4px;}
-#recenterBtn{position:absolute;left:24px;bottom:192px;width:58px;height:58px;border:none;border-radius:50%;background:rgba(30,136,229,0.95);color:white;font-size:28px;font-weight:bold;z-index:1000;box-shadow:0 4px 14px rgba(0,0,0,0.3);cursor:pointer;}
-#turnBox{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:88%;max-width:420px;background:rgba(255,255,255,0.96);border-radius:14px;padding:12px;z-index:1000;box-shadow:0 4px 14px rgba(0,0,0,0.25);text-align:center;}
-#turnText{font-weight:bold;font-size:16px;}
-#streetText{margin-top:5px;color:#555;font-size:14px;}
-#suggestions,#startSuggestions{position:absolute;top:56px;left:10px;right:10px;background:white;border-radius:10px;max-height:180px;overflow-y:auto;box-shadow:0 2px 10px rgba(0,0,0,0.15);z-index:1001;}
+#controls{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(255,255,255,0.97);padding:15px;border-radius:15px;max-width:480px;width:92%;box-shadow:0 4px 14px rgba(0,0,0,0.2);}
+#header{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+#logo{width:28px;height:28px;}
+#title{font-weight:bold;font-size:18px;color:#1e88e5;flex-grow:1;}
+#startLocation,#destination{width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;font-size:15px;margin-bottom:6px;}
+#startBtn{width:100%;padding:10px;margin-top:5px;border-radius:10px;background:#1e88e5;color:white;border:none;font-size:16px;cursor:pointer;}
+#startSuggestions,#suggestions{position:relative;max-height:150px;overflow-y:auto;background:white;border-radius:10px;margin-top:4px;}
 .suggestion{padding:10px;border-bottom:1px solid #eee;cursor:pointer;}
 .suggestion:hover{background:#f1f1f1;}
+#etaCircle{position:absolute;left:14px;bottom:95px;width:92px;height:92px;border-radius:50%;background:rgba(30,136,229,0.95);color:white;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:1000;box-shadow:0 4px 14px rgba(0,0,0,0.3);text-align:center;}
+#kmLeft{font-size:20px;font-weight:bold;line-height:1;}
+#minsLeft{font-size:15px;margin-top:4px;}
+#recenterBtn{position:absolute;left:24px;bottom:200px;width:36px;height:36px;border-radius:50%;background:rgba(30,136,229,0.95);color:white;display:flex;justify-content:center;align-items:center;cursor:pointer;z-index:1000;font-weight:bold;box-shadow:0 4px 14px rgba(0,0,0,0.3);}
 </style>
 </head>
-<body>
-<div id="controls">
-<input id="startLocation" placeholder="Starting point (leave blank for current location)">
-<input id="destination" placeholder="Destination">
-<button id="startBtn">Start</button>
-<div id="startSuggestions"></div>
-<div id="suggestions"></div>
+<body><div id="controls">
+  <div id="header">
+    <img id="logo" src="https://upload.wikimedia.org/wikipedia/commons/e/ed/GPS_icon.svg" alt="GPS">
+    <div id="title">Pro GPS Navigation</div>
+  </div>
+  <input id="startLocation" placeholder="Starting point (leave blank for current location)">
+  <div id="startSuggestions"></div>
+  <input id="destination" placeholder="Destination">
+  <div id="suggestions"></div>
+  <button id="startBtn">Start</button>
+</div><div id="etaCircle">
+  <div id="kmLeft">0 km</div>
+  <div id="minsLeft">0 min</div>
 </div>
-<button id="recenterBtn">⌖</button>
-<div id="etaCircle"><div id="kmLeft">0 km</div><div id="minsLeft">0 min</div></div>
-<div id="turnBox"><div id="turnText">Waiting for route...</div><div id="streetText"></div></div>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
-<script>
-const map=L.map('map',{zoomControl:false,minZoom:4,maxZoom:18,inertia:true,inertiaDeceleration:2500}).setView([-29,24],5);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);let currentLocation=null,destinationCoords=null,startCoords=null,routingControl=null; const startInput=document.getElementById('startLocation'); const destinationInput=document.getElementById('destination'); const startSuggestions=document.getElementById('startSuggestions'); const suggestions=document.getElementById('suggestions'); const kmLeft=document.getElementById('kmLeft'); const minsLeft=document.getElementById('minsLeft'); const recenterBtn=document.getElementById('recenterBtn');
+<div id="recenterBtn">↺</div><div id="map"></div><script src="https://unpkg.com/leaflet/dist/leaflet.js"></script><script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script><script>
+const map = L.map('map', {zoomControl:false}).setView([-29.0,24.0],5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
 
-navigator.geolocation.watchPosition(pos=>{currentLocation=[pos.coords.latitude,pos.coords.longitude];},err=>{}, {enableHighAccuracy:true,maximumAge:1000,timeout:10000});
+let currentLocation=null;
+let destinationCoords=null;
+let startCoords=null;
+let routingControl=null;
 
-async function searchPlaces(query){if(query.length<2)return[];const res=await fetch(https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&q=${encodeURIComponent(query)});return await res.json();}
+const startInput=document.getElementById('startLocation');
+const destinationInput=document.getElementById('destination');
+const startSuggestions=document.getElementById('startSuggestions');
+const suggestions=document.getElementById('suggestions');
+const kmLeft=document.getElementById('kmLeft');
+const minsLeft=document.getElementById('minsLeft');
+const startBtn=document.getElementById('startBtn');
+const recenterBtn=document.getElementById('recenterBtn');
 
-function fillSuggestions(inputElem,suggestionsElem,setCoords){inputElem.addEventListener('input',async()=>{ const text=inputElem.value.trim(); suggestionsElem.innerHTML=''; if(text.length<2)return; const places=await searchPlaces(text); places.forEach(place=>{ const div=document.createElement('div'); div.className='suggestion'; const road=place.address?.road||'',suburb=place.address?.suburb||place.address?.city||'',house=place.address?.house_number||''; div.textContent=[house,road,suburb].filter(Boolean).join(' ')||place.display_name; div.onclick=()=>{inputElem.value=div.textContent;setCoords([parseFloat(place.lat),parseFloat(place.lon)]);suggestionsElem.innerHTML='';}; suggestionsElem.appendChild(div); });});}
+navigator.geolocation.watchPosition(pos=>{currentLocation=[pos.coords.latitude,pos.coords.longitude];},err=>{}, {enableHighAccuracy:true});
 
-fillSuggestions(startInput,startSuggestions,val=>startCoords=val); fillSuggestions(destinationInput,suggestions,val=>destinationCoords=val);
+async function searchPlaces(query){
+  const res=await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&extratags=1&namedetails=1&limit=8&q=${encodeURIComponent(query)}`);
+  return await res.json();
+}
 
-function makeRoute(){ if(!destinationCoords)return; const routeStart=startCoords||currentLocation; if(!routeStart)return; if(routingControl)map.removeControl(routingControl); routingControl=L.Routing.control({ waypoints:[L.latLng(routeStart[0],routeStart[1]),L.latLng(destinationCoords[0],destinationCoords[1])], lineOptions:{styles:[{color:'#1e88e5',weight:7,opacity:0.9}]}, addWaypoints:false,routeWhileDragging:true,fitSelectedRoutes:true,show:false, createMarker:(i,wp)=>i===1?L.marker(wp.latLng):null }).addTo(map); routingControl.on('routesfound',e=>{ const route=e.routes[0]; kmLeft.textContent=(route.summary.totalDistance/1000).toFixed(1)+' km'; minsLeft.textContent=Math.ceil(route.summary.totalTime/60)+' min'; });}
+function setupAutocomplete(input, suggestionsContainer, setCoords){
+  input.addEventListener('input', async ()=>{
+    const text=input.value.trim();
+    suggestionsContainer.innerHTML='';
+    if(text.length<2) return;
+    const places=await searchPlaces(text);
+    places.forEach(place=>{
+      const div=document.createElement('div');
+      div.className='suggestion';
+      const road=place.address?.road||'';
+      const suburb=place.address?.suburb||place.address?.city||'';
+      const house=place.address?.house_number||'';
+      div.textContent=[house,road,suburb].filter(Boolean).join(' ')||place.display_name;
+      div.onclick=()=>{
+        input.value=div.textContent;
+        setCoords([parseFloat(place.lat),parseFloat(place.lon)]);
+        suggestionsContainer.innerHTML='';
+      };
+      suggestionsContainer.appendChild(div);
+    });
+  });
+}
 
-document.getElementById('startBtn').addEventListener('click',makeRoute); recenterBtn.addEventListener('click',()=>{if(routingControl)map.fitBounds(routingControl.getBounds(),{padding:[70,70]});}); </script>
+setupAutocomplete(startInput,startSuggestions,coords=>startCoords=coords);
+setupAutocomplete(destinationInput,suggestions,coords=>destinationCoords=coords);
 
-</body>
+function drawRoute(){
+  if(!destinationCoords) return;
+  const start=startCoords||currentLocation;
+  if(!start) return;
+  if(routingControl) map.removeControl(routingControl);
+  routingControl=L.Routing.control({
+    waypoints:[L.latLng(start[0],start[1]),L.latLng(destinationCoords[0],destinationCoords[1])],
+    lineOptions:{styles:[{color:'#1e88e5',weight:7,opacity:0.9}]},
+    addWaypoints:false,
+    routeWhileDragging:false,
+    fitSelectedRoutes:true,
+    show:false,
+    createMarker:(i,wp)=>i===1?L.marker(wp.latLng):null
+  }).addTo(map);
+  routingControl.on('routesfound',e=>{
+    const route=e.routes[0];
+    kmLeft.textContent=(route.summary.totalDistance/1000).toFixed(1)+' km';
+    minsLeft.textContent=Math.ceil(route.summary.totalTime/60)+' min';
+  });
+}
+
+startBtn.addEventListener('click',drawRoute);
+recenterBtn.addEventListener('click',()=>{
+  if(routingControl){
+    const bounds=routingControl.getBounds();
+    map.fitBounds(bounds,{padding:[60,60],animate:true});
+  }
+});
+</script></body>
 </html>
